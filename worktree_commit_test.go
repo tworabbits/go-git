@@ -18,8 +18,6 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/ProtonMail/go-crypto/openpgp/armor"
-	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-billy/v5/util"
 	. "gopkg.in/check.v1"
@@ -151,61 +149,61 @@ func (s *WorktreeSuite) TestRemoveAndCommitAll(c *C) {
 	assertStorageStatus(c, s.Repository, 13, 11, 11, expected)
 }
 
-func (s *WorktreeSuite) TestCommitSign(c *C) {
-	fs := memfs.New()
-	storage := memory.NewStorage()
+// func (s *WorktreeSuite) TestCommitSign(c *C) {
+// 	fs := memfs.New()
+// 	storage := memory.NewStorage()
 
-	r, err := Init(storage, fs)
-	c.Assert(err, IsNil)
+// 	r, err := Init(storage, fs)
+// 	c.Assert(err, IsNil)
 
-	w, err := r.Worktree()
-	c.Assert(err, IsNil)
+// 	w, err := r.Worktree()
+// 	c.Assert(err, IsNil)
 
-	util.WriteFile(fs, "foo", []byte("foo"), 0644)
+// 	util.WriteFile(fs, "foo", []byte("foo"), 0644)
 
-	_, err = w.Add("foo")
-	c.Assert(err, IsNil)
+// 	_, err = w.Add("foo")
+// 	c.Assert(err, IsNil)
 
-	key := commitSignKey(c, true)
-	hash, err := w.Commit("foo\n", &CommitOptions{Author: defaultSignature(), SignKey: key})
-	c.Assert(err, IsNil)
+// 	key := commitSignKey(c, true)
+// 	hash, err := w.Commit("foo\n", &CommitOptions{Author: defaultSignature(), SignKey: key})
+// 	c.Assert(err, IsNil)
 
-	// Verify the commit.
-	pks := new(bytes.Buffer)
-	pkw, err := armor.Encode(pks, openpgp.PublicKeyType, nil)
-	c.Assert(err, IsNil)
+// 	// Verify the commit.
+// 	pks := new(bytes.Buffer)
+// 	pkw, err := armor.Encode(pks, openpgp.PublicKeyType, nil)
+// 	c.Assert(err, IsNil)
 
-	err = key.Serialize(pkw)
-	c.Assert(err, IsNil)
-	err = pkw.Close()
-	c.Assert(err, IsNil)
+// 	err = key.Serialize(pkw)
+// 	c.Assert(err, IsNil)
+// 	err = pkw.Close()
+// 	c.Assert(err, IsNil)
 
-	expectedCommit, err := r.CommitObject(hash)
-	c.Assert(err, IsNil)
-	actual, err := expectedCommit.Verify(pks.String())
-	c.Assert(err, IsNil)
-	c.Assert(actual.PrimaryKey, DeepEquals, key.PrimaryKey)
-}
+// 	expectedCommit, err := r.CommitObject(hash)
+// 	c.Assert(err, IsNil)
+// 	actual, err := expectedCommit.Verify(pks.String())
+// 	c.Assert(err, IsNil)
+// 	c.Assert(actual.PrimaryKey, DeepEquals, key.PrimaryKey)
+// }
 
-func (s *WorktreeSuite) TestCommitSignBadKey(c *C) {
-	fs := memfs.New()
-	storage := memory.NewStorage()
+// func (s *WorktreeSuite) TestCommitSignBadKey(c *C) {
+// 	fs := memfs.New()
+// 	storage := memory.NewStorage()
 
-	r, err := Init(storage, fs)
-	c.Assert(err, IsNil)
+// 	r, err := Init(storage, fs)
+// 	c.Assert(err, IsNil)
 
-	w, err := r.Worktree()
-	c.Assert(err, IsNil)
+// 	w, err := r.Worktree()
+// 	c.Assert(err, IsNil)
 
-	util.WriteFile(fs, "foo", []byte("foo"), 0644)
+// 	util.WriteFile(fs, "foo", []byte("foo"), 0644)
 
-	_, err = w.Add("foo")
-	c.Assert(err, IsNil)
+// 	_, err = w.Add("foo")
+// 	c.Assert(err, IsNil)
 
-	key := commitSignKey(c, false)
-	_, err = w.Commit("foo\n", &CommitOptions{Author: defaultSignature(), SignKey: key})
-	c.Assert(err, Equals, errors.InvalidArgumentError("signing key is encrypted"))
-}
+// 	key := commitSignKey(c, false)
+// 	_, err = w.Commit("foo\n", &CommitOptions{Author: defaultSignature(), SignKey: key})
+// 	c.Assert(err, Equals, errors.InvalidArgumentError("signing key is encrypted"))
+// }
 
 func (s *WorktreeSuite) TestCommitTreeSort(c *C) {
 	fs, clean := s.TemporalFilesystem()

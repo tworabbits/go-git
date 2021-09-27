@@ -1,7 +1,16 @@
 package git
 
 import (
-	"bytes"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"io"
 	"path"
 	"sort"
 	"strings"
@@ -12,7 +21,6 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/storage"
 
-	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/go-git/go-billy/v5"
 )
 
@@ -106,7 +114,7 @@ func (w *Worktree) buildCommitObject(msg string, opts *CommitOptions, tree plumb
 		if err != nil {
 			return plumbing.ZeroHash, err
 		}
-		commit.PGPSignature = sig
+		commit.Signature = sig
 	}
 
 	obj := w.r.Storer.NewEncodedObject()
@@ -116,20 +124,61 @@ func (w *Worktree) buildCommitObject(msg string, opts *CommitOptions, tree plumb
 	return w.r.Storer.SetEncodedObject(obj)
 }
 
-func (w *Worktree) buildCommitSignature(commit *object.Commit, signKey *openpgp.Entity) (string, error) {
+func (w *Worktree) buildCommitSignature(commit *object.Commit, signKey []byte) (string, error) {
+	block, _ := pem.Decode(signKey)
+	if block == nil {
+		return "", errors.New("no key found")
+	}
+
+	var privKey interface{}
+	var err error
+	switch block.Type {
+	case "RSA PRIVATE KEY":
+		privKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			return "", err
+		}
+	case "PRIVATE KEY":
+		privKey, err = x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			return "", err
+		}
+	default:
+		return "", fmt.Errorf("unsupported key type %q", block.Type)
+	}
+
+	rsaPrivateKey, ok := privKey.(*rsa.PrivateKey)
+	if !ok {
+		return "", fmt.Errorf("wrong key type (currently only rsa keys are supported)")
+	}
+
 	encoded := &plumbing.MemoryObject{}
 	if err := commit.Encode(encoded); err != nil {
 		return "", err
 	}
+
 	r, err := encoded.Reader()
 	if err != nil {
 		return "", err
 	}
-	var b bytes.Buffer
-	if err := openpgp.ArmoredDetachSign(&b, signKey, r, nil); err != nil {
+
+	message, err := io.ReadAll(r)
+	if err != nil {
 		return "", err
 	}
-	return b.String(), nil
+
+	hash := sha256.New()
+	hash.Write(message)
+	hashSum := hash.Sum(nil)
+
+	rawSignature, err := rsa.SignPKCS1v15(rand.Reader, rsaPrivateKey, crypto.SHA256, hashSum)
+	if err != nil {
+		return "", err
+	}
+
+	signature := base64.StdEncoding.EncodeToString(rawSignature)
+
+	return signature, nil
 }
 
 // buildTreeHelper converts a given index.Index file into multiple git objects

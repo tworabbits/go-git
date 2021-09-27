@@ -4,12 +4,16 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
-
-	"github.com/ProtonMail/go-crypto/openpgp"
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/storer"
@@ -38,8 +42,8 @@ type Commit struct {
 	// Committer is the one performing the commit, might be different from
 	// Author.
 	Committer Signature
-	// PGPSignature is the PGP signature of the commit.
-	PGPSignature string
+	// Signature is the signature of the commit.
+	Signature string
 	// Message is the commit message, contains arbitrary text.
 	Message string
 	// TreeHash is the hash of the root tree of the commit.
@@ -196,7 +200,7 @@ func (c *Commit) Decode(o plumbing.EncodedObject) (err error) {
 		if pgpsig {
 			if len(line) > 0 && line[0] == ' ' {
 				line = bytes.TrimLeft(line, " ")
-				c.PGPSignature += string(line)
+				c.Signature += string(line)
 				continue
 			} else {
 				pgpsig = false
@@ -227,7 +231,7 @@ func (c *Commit) Decode(o plumbing.EncodedObject) (err error) {
 			case "committer":
 				c.Committer.Decode(data)
 			case headerpgp:
-				c.PGPSignature += string(data) + "\n"
+				c.Signature += string(data) + "\n"
 				pgpsig = true
 			}
 		} else {
@@ -287,7 +291,7 @@ func (c *Commit) encode(o plumbing.EncodedObject, includeSig bool) (err error) {
 		return err
 	}
 
-	if c.PGPSignature != "" && includeSig {
+	if c.Signature != "" && includeSig {
 		if _, err = fmt.Fprint(w, "\n"+headerpgp+" "); err != nil {
 			return err
 		}
@@ -296,7 +300,7 @@ func (c *Commit) encode(o plumbing.EncodedObject, includeSig bool) (err error) {
 		// newline. Use join for this so it's clear that a newline should not be
 		// added after this section, as it will be added when the message is
 		// printed.
-		signature := strings.TrimSuffix(c.PGPSignature, "\n")
+		signature := strings.TrimSuffix(c.Signature, "\n")
 		lines := strings.Split(signature, "\n")
 		if _, err = fmt.Fprint(w, strings.Join(lines, "\n ")); err != nil {
 			return err
@@ -352,29 +356,63 @@ func (c *Commit) String() string {
 	)
 }
 
-// Verify performs PGP verification of the commit with a provided armored
-// keyring and returns openpgp.Entity associated with verifying key on success.
-func (c *Commit) Verify(armoredKeyRing string) (*openpgp.Entity, error) {
-	keyRingReader := strings.NewReader(armoredKeyRing)
-	keyring, err := openpgp.ReadArmoredKeyRing(keyRingReader)
-	if err != nil {
-		return nil, err
+// Verify performs verification of the commit with a provided public key
+func (c *Commit) Verify(key []byte) error {
+	block, _ := pem.Decode(key)
+	if block == nil {
+		return errors.New("no key found")
 	}
 
-	// Extract signature.
-	signature := strings.NewReader(c.PGPSignature)
+	var pubKey interface{}
+	var err error
+	switch block.Type {
+	case "RSA PUBLIC KEY":
+		pubKey, err = x509.ParsePKCS1PublicKey(block.Bytes)
+		if err != nil {
+			return err
+		}
+	case "PUBLIC KEY":
+		pubKey, err = x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported key type %q", block.Type)
+	}
+
+	// Currently only rsa keys are supported
+	rsaPublicKey, ok := pubKey.(*rsa.PublicKey)
+	if !ok {
+		return fmt.Errorf("wrong key type (currently only rsa keys are supported)")
+	}
+
+	// Extract signature
+	signature, err := base64.StdEncoding.DecodeString(c.Signature)
+	if err != nil {
+		return err
+	}
 
 	encoded := &plumbing.MemoryObject{}
 	// Encode commit components, excluding signature and get a reader object.
 	if err := c.EncodeWithoutSignature(encoded); err != nil {
-		return nil, err
-	}
-	er, err := encoded.Reader()
-	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return openpgp.CheckArmoredDetachedSignature(keyring, er, signature, nil)
+	er, err := encoded.Reader()
+	if err != nil {
+		return err
+	}
+
+	message, err := io.ReadAll(er)
+	if err != nil {
+		return err
+	}
+
+	hash := sha256.New()
+	hash.Write(message)
+	hashSum := hash.Sum(nil)
+
+	return rsa.VerifyPKCS1v15(rsaPublicKey, crypto.SHA256, hashSum, signature)
 }
 
 func indent(t string) string {

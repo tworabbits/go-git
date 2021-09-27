@@ -434,7 +434,7 @@ type CommitOptions struct {
 	// SignKey denotes a key to sign the commit with. A nil value here means the
 	// commit will not be signed. The private key must be present and already
 	// decrypted.
-	SignKey *openpgp.Entity
+	SignKey []byte
 }
 
 // Validate validates the fields and sets the default values.

@@ -326,21 +326,21 @@ RUysgqjcpT8+iQM1PblGfHR4XAhuOqN5Fx06PSaFZhqvWFezJ28/CLyX5q+oIVk=
 =EFTF
 -----END PGP SIGNATURE-----
 `
-	commit.PGPSignature = pgpsignature
+	commit.Signature = pgpsignature
 
 	err := commit.Encode(encoded)
 	c.Assert(err, IsNil)
 
 	err = decoded.Decode(encoded)
 	c.Assert(err, IsNil)
-	c.Assert(decoded.PGPSignature, Equals, pgpsignature)
+	c.Assert(decoded.Signature, Equals, pgpsignature)
 
 	// signature with extra empty line, it caused "index out of range" when
 	// parsing it
 
 	pgpsignature2 := "\n" + pgpsignature
 
-	commit.PGPSignature = pgpsignature2
+	commit.Signature = pgpsignature2
 	encoded = &plumbing.MemoryObject{}
 	decoded = &Commit{}
 
@@ -349,11 +349,11 @@ RUysgqjcpT8+iQM1PblGfHR4XAhuOqN5Fx06PSaFZhqvWFezJ28/CLyX5q+oIVk=
 
 	err = decoded.Decode(encoded)
 	c.Assert(err, IsNil)
-	c.Assert(decoded.PGPSignature, Equals, pgpsignature2)
+	c.Assert(decoded.Signature, Equals, pgpsignature2)
 
 	// signature in author name
 
-	commit.PGPSignature = ""
+	commit.Signature = ""
 	commit.Author.Name = beginpgp
 	encoded = &plumbing.MemoryObject{}
 	decoded = &Commit{}
@@ -363,12 +363,12 @@ RUysgqjcpT8+iQM1PblGfHR4XAhuOqN5Fx06PSaFZhqvWFezJ28/CLyX5q+oIVk=
 
 	err = decoded.Decode(encoded)
 	c.Assert(err, IsNil)
-	c.Assert(decoded.PGPSignature, Equals, "")
+	c.Assert(decoded.Signature, Equals, "")
 	c.Assert(decoded.Author.Name, Equals, beginpgp)
 
 	// broken signature
 
-	commit.PGPSignature = beginpgp + "\n" +
+	commit.Signature = beginpgp + "\n" +
 		"some\n" +
 		"trash\n" +
 		endpgp +
@@ -381,7 +381,7 @@ RUysgqjcpT8+iQM1PblGfHR4XAhuOqN5Fx06PSaFZhqvWFezJ28/CLyX5q+oIVk=
 
 	err = decoded.Decode(encoded)
 	c.Assert(err, IsNil)
-	c.Assert(decoded.PGPSignature, Equals, commit.PGPSignature)
+	c.Assert(decoded.Signature, Equals, commit.Signature)
 }
 
 func (s *SuiteCommit) TestStat(c *C) {
@@ -410,50 +410,50 @@ func (s *SuiteCommit) TestStat(c *C) {
 	c.Assert(fileStats[1].String(), Equals, " php/crappy.php | 259 ++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
 }
 
-func (s *SuiteCommit) TestVerify(c *C) {
-	ts := time.Unix(1617402711, 0)
-	loc, _ := time.LoadLocation("UTC")
-	commit := &Commit{
-		Hash:      plumbing.NewHash("1eca38290a3131d0c90709496a9b2207a872631e"),
-		Author:    Signature{Name: "go-git", Email: "go-git@example.com", When: ts.In(loc)},
-		Committer: Signature{Name: "go-git", Email: "go-git@example.com", When: ts.In(loc)},
-		Message: `test
-`,
-		TreeHash:     plumbing.NewHash("52a266a58f2c028ad7de4dfd3a72fdf76b0d4e24"),
-		ParentHashes: []plumbing.Hash{plumbing.NewHash("e4fbb611cd14149c7a78e9c08425f59f4b736a9a")},
-		PGPSignature: `
------BEGIN PGP SIGNATURE-----
+// func (s *SuiteCommit) TestVerify(c *C) {
+// 	ts := time.Unix(1617402711, 0)
+// 	loc, _ := time.LoadLocation("UTC")
+// 	commit := &Commit{
+// 		Hash:      plumbing.NewHash("1eca38290a3131d0c90709496a9b2207a872631e"),
+// 		Author:    Signature{Name: "go-git", Email: "go-git@example.com", When: ts.In(loc)},
+// 		Committer: Signature{Name: "go-git", Email: "go-git@example.com", When: ts.In(loc)},
+// 		Message: `test
+// `,
+// 		TreeHash:     plumbing.NewHash("52a266a58f2c028ad7de4dfd3a72fdf76b0d4e24"),
+// 		ParentHashes: []plumbing.Hash{plumbing.NewHash("e4fbb611cd14149c7a78e9c08425f59f4b736a9a")},
+// 		Signature: `
+// -----BEGIN PGP SIGNATURE-----
 
-iHUEABYKAB0WIQTMqU0ycQ3f6g3PMoWMmmmF4LuV8QUCYGebVwAKCRCMmmmF4LuV
-8VtyAP9LbuXAhtK6FQqOjKybBwlV70rLcXVP24ubDuz88VVwSgD+LuObsasWq6/U
-TssDKHUR2taa53bQYjkZQBpvvwOrLgc=
-=YQUf
------END PGP SIGNATURE-----
-`,
-	}
+// iHUEABYKAB0WIQTMqU0ycQ3f6g3PMoWMmmmF4LuV8QUCYGebVwAKCRCMmmmF4LuV
+// 8VtyAP9LbuXAhtK6FQqOjKybBwlV70rLcXVP24ubDuz88VVwSgD+LuObsasWq6/U
+// TssDKHUR2taa53bQYjkZQBpvvwOrLgc=
+// =YQUf
+// -----END PGP SIGNATURE-----
+// `,
+// 	}
 
-	armoredKeyRing := `
------BEGIN PGP PUBLIC KEY BLOCK-----
+// 	armoredKeyRing := `
+// -----BEGIN PGP PUBLIC KEY BLOCK-----
 
-mDMEYGeSihYJKwYBBAHaRw8BAQdAIs9A3YD/EghhAOkHDkxlUkpqYrXUXebLfmmX
-+pdEK6C0D2dvLWdpdCB0ZXN0IGtleYiPBBMWCgA3FiEEzKlNMnEN3+oNzzKFjJpp
-heC7lfEFAmBnkooCGyMECwkIBwUVCgkICwUWAwIBAAIeAQIXgAAKCRCMmmmF4LuV
-8a3jAQCi4hSqjj6J3ch290FvQaYPGwR+EMQTMBG54t+NN6sDfgD/aZy41+0dnFKl
-qM/wLW5Wr9XvwH+1zXXbuSvfxasHowq4OARgZ5KKEgorBgEEAZdVAQUBAQdAXoQz
-VTYug16SisAoSrxFnOmxmFu6efYgCAwXu0ZuvzsDAQgHiHgEGBYKACAWIQTMqU0y
-cQ3f6g3PMoWMmmmF4LuV8QUCYGeSigIbDAAKCRCMmmmF4LuV8Q4QAQCKW5FnEdWW
-lHYKeByw3JugnlZ0U3V/R20bCwDglst5UQEAtkN2iZkHtkPly9xapsfNqnrt2gTt
-YIefGtzXfldDxg4=
-=Psht
------END PGP PUBLIC KEY BLOCK-----
-`
+// mDMEYGeSihYJKwYBBAHaRw8BAQdAIs9A3YD/EghhAOkHDkxlUkpqYrXUXebLfmmX
+// +pdEK6C0D2dvLWdpdCB0ZXN0IGtleYiPBBMWCgA3FiEEzKlNMnEN3+oNzzKFjJpp
+// heC7lfEFAmBnkooCGyMECwkIBwUVCgkICwUWAwIBAAIeAQIXgAAKCRCMmmmF4LuV
+// 8a3jAQCi4hSqjj6J3ch290FvQaYPGwR+EMQTMBG54t+NN6sDfgD/aZy41+0dnFKl
+// qM/wLW5Wr9XvwH+1zXXbuSvfxasHowq4OARgZ5KKEgorBgEEAZdVAQUBAQdAXoQz
+// VTYug16SisAoSrxFnOmxmFu6efYgCAwXu0ZuvzsDAQgHiHgEGBYKACAWIQTMqU0y
+// cQ3f6g3PMoWMmmmF4LuV8QUCYGeSigIbDAAKCRCMmmmF4LuV8Q4QAQCKW5FnEdWW
+// lHYKeByw3JugnlZ0U3V/R20bCwDglst5UQEAtkN2iZkHtkPly9xapsfNqnrt2gTt
+// YIefGtzXfldDxg4=
+// =Psht
+// -----END PGP PUBLIC KEY BLOCK-----
+// `
 
-	e, err := commit.Verify(armoredKeyRing)
-        c.Assert(err, IsNil)
+// 	e, err := commit.Verify(armoredKeyRing)
+// 	c.Assert(err, IsNil)
 
-	_, ok := e.Identities["go-git test key"]
-	c.Assert(ok, Equals, true)
-}
+// 	_, ok := e.Identities["go-git test key"]
+// 	c.Assert(ok, Equals, true)
+// }
 
 func (s *SuiteCommit) TestPatchCancel(c *C) {
 	from := s.commit(c, plumbing.NewHash("918c48b83bd081e863dbe1b80f8998f058cd8294"))
@@ -472,7 +472,7 @@ func (s *SuiteCommit) TestMalformedHeader(c *C) {
 	decoded := &Commit{}
 	commit := *s.Commit
 
-	commit.PGPSignature = "\n"
+	commit.Signature = "\n"
 	commit.Author.Name = "\n"
 	commit.Author.Email = "\n"
 	commit.Committer.Name = "\n"
